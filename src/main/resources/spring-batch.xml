@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	   xmlns:batch="http://www.springframework.org/schema/batch"
+	   xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-4.1.xsd
+      http://www.springframework.org/schema/batch
+      http://www.springframework.org/schema/batch/spring-batch-2.2.xsd
+      " default-autowire="byName">
+
+    <!--配置springBatch启动器-->
+	<bean id="jobLauncher"
+		  class="org.springframework.batch.core.launch.support.SimpleJobLauncher">
+		<property name="jobRepository" ref="jobRepository"/>
+	</bean>
+
+    <!-- JOB_1 查询待迁移数据并标记为待迁移  queryArchiveDataThenMarkDataJob-->
+	<batch:job id="myJobDemo39" job-repository="jobRepository" restartable="true">
+        <!--标记完成的订单数据-->
+		<batch:step id="queryArchiveDataThenMarkData_one" next="queryArchiveDataThenMarkData_two">
+			<batch:tasklet allow-start-if-complete="true" task-executor="taskExecutor">
+				<batch:chunk reader="queryArchiveData" writer="markDataToArchive" commit-interval="10" retry-limit="5" skip-limit="5">
+                    <!--设置统一重试异常-->
+                    <batch:retryable-exception-classes>
+                        <batch:include class="java.lang.Exception"/>
+                    </batch:retryable-exception-classes>
+                    <!--设置统一跳过异常-->
+                    <batch:skippable-exception-classes>
+                        <batch:include class="java.lang.Exception"/>
+                    </batch:skippable-exception-classes>
+                </batch:chunk>
+			</batch:tasklet>
+            <batch:listeners>
+                <batch:listener ref="dbJobListener">
+                </batch:listener>
+            </batch:listeners>
+		</batch:step>
+        <!--标记逻辑删除的订单数据 即 status = -1 -->
+        <batch:step id="queryArchiveDataThenMarkData_two">
+            <batch:tasklet allow-start-if-complete="true" task-executor="taskExecutor">
+                <batch:chunk reader="queryArchiveData" writer="markDataToArchive" commit-interval="10" retry-limit="5" skip-limit="5">
+                    <!--设置统一重试异常-->
+                    <batch:retryable-exception-classes>
+                        <batch:include class="java.lang.Exception"/>
+                    </batch:retryable-exception-classes>
+                    <!--设置统一跳过异常-->
+                    <batch:skippable-exception-classes>
+                        <batch:include class="java.lang.Exception"/>
+                    </batch:skippable-exception-classes>
+                </batch:chunk>
+            </batch:tasklet>
+            <batch:listeners>
+                <batch:listener ref="dbJobListener">
+                </batch:listener>
+            </batch:listeners>
+        </batch:step>
+	</batch:job>
+
+    <!-- JOB_2 查询标记为待迁移的数据进行迁移 -->
+    <batch:job id="queryArchivedDataThenArchiveJob" job-repository="jobRepository" restartable="true">
+        <!--标记完成的订单数据-->
+        <batch:step id="queryArchivedDataThenArchive">
+            <batch:tasklet allow-start-if-complete="true" task-executor="taskExecutor">
+                <batch:chunk reader="queryToArchiveData" writer="archiveMarkData" commit-interval="10" retry-limit="5" skip-limit="5">
+                    <!--设置统一重试异常-->
+                    <batch:retryable-exception-classes>
+                        <batch:include class="java.lang.Exception"/>
+                    </batch:retryable-exception-classes>
+                    <!--设置统一跳过异常-->
+                    <batch:skippable-exception-classes>
+                        <batch:include class="java.lang.Exception"/>
+                    </batch:skippable-exception-classes>
+                </batch:chunk>
+            </batch:tasklet>
+            <batch:listeners>
+                <batch:listener ref="dbJobListener">
+                </batch:listener>
+            </batch:listeners>
+        </batch:step>
+    </batch:job>
+
+    <!-- JOB_3 查询归档成功数据并标记为归档成功 -->
+    <batch:job id="queryArchivedDataThenValidateJob" job-repository="jobRepository" restartable="true">
+        <!--标记完成的订单数据-->
+        <batch:step id="queryArchivedDataThenValidate">
+            <batch:tasklet allow-start-if-complete="true" task-executor="taskExecutor">
+                <batch:chunk reader="queryArchivedData" writer="markDataToDel" commit-interval="10" retry-limit="5" skip-limit="5">
+                    <!--设置统一重试异常-->
+                    <batch:retryable-exception-classes>
+                        <batch:include class="java.lang.Exception"/>
+                    </batch:retryable-exception-classes>
+                    <!--设置统一跳过异常-->
+                    <batch:skippable-exception-classes>
+                        <batch:include class="java.lang.Exception"/>
+                    </batch:skippable-exception-classes>
+                </batch:chunk>
+            </batch:tasklet>
+            <batch:listeners>
+                <batch:listener ref="dbJobListener">
+                </batch:listener>
+            </batch:listeners>
+        </batch:step>
+    </batch:job>
+
+    <!-- JOB_4 查询验证成功迁移的数据并删除数据 -->
+    <batch:job id="queryArchivedDataThenDelJob" job-repository="jobRepository" restartable="true">
+        <!--标记完成的订单数据-->
+        <batch:step id="queryArchivedDataThenDel">
+            <batch:tasklet allow-start-if-complete="true" task-executor="taskExecutor">
+                <batch:chunk reader="queryArchivedSuccessData" writer="delDateItem" commit-interval="10" retry-limit="5" skip-limit="5">
+                    <!--设置统一重试异常-->
+                    <batch:retryable-exception-classes>
+                        <batch:include class="java.lang.Exception"/>
+                    </batch:retryable-exception-classes>
+                    <!--设置统一跳过异常-->
+                    <batch:skippable-exception-classes>
+                        <batch:include class="java.lang.Exception"/>
+                    </batch:skippable-exception-classes>
+                </batch:chunk>
+            </batch:tasklet>
+            <batch:listeners>
+                <batch:listener ref="dbJobListener">
+                </batch:listener>
+            </batch:listeners>
+        </batch:step>
+    </batch:job>
+
+    <!-- mapper映射 -->
+    <bean id="orderDbMapper" class="com.jd.batch.mapper.OrderDbMapper" />
+
+    <!-- 1.1 查询所有待迁移数据 -->
+    <bean id="queryArchiveData" class="org.springframework.batch.item.database.JdbcCursorItemReader">
+        <property name="dataSource" ref="dataSource" />
+        <property name="rowMapper" ref="orderDbMapper"/>
+        <!--查询所有完成收货60天以上的订单 -->
+        <property name="sql" value="select id from `order` where is_ship = 1 and modified &lt;= ADDDATE(now(),-60) "/>
+        <property name="fetchSize" value="20"/>
+    </bean>
+    <bean id="queryDeleteData" class="org.springframework.batch.item.database.JdbcCursorItemReader">
+        <property name="dataSource" ref="dataSource" />
+        <property name="rowMapper" ref="orderDbMapper"/>
+        <!--查询所有删除60天以上的订单 -->
+        <property name="sql" value="select id from `order` where status = -1 and  modified &lt;= ADDDATE(now(),-60) "/>
+        <property name="fetchSize" value="20"/>
+    </bean>
+    <!-- 1.2 将所有待迁移数据标记为待迁移状态 status = 100 -->
+    <bean id="markDataToArchive" class="com.jd.batch.writer.MarkDataToArchive">
+        <property name="dataSource" ref="dataSource"/>
+        <property name="tableName" value="order"/>
+        <property name="status" value="100"/>
+    </bean>
+
+    <!--2.1 查询所有标记为100的待迁移数据-->
+    <bean id="queryToArchiveData" class="org.springframework.batch.item.database.JdbcCursorItemReader">
+        <property name="dataSource" ref="dataSource" />
+        <property name="rowMapper" ref="orderDbMapper"/>
+        <property name="sql" value="select * from `order` where status = 100 "/>
+        <property name="fetchSize" value="20"/>
+    </bean>
+    <!--2.2 将数据迁移到新表当中,并将更新的数据标记为101,表示迁移成功-->
+    <bean id="archiveMarkData" class="com.jd.batch.writer.ArchiveMarkData">
+        <property name="dataSource" ref="dataSource"/>
+        <property name="tableName" value="order_old"/>
+        <property name="status" value="101"/>
+    </bean>
+
+    <!--3.1 验证数据是否迁移成功，查询7天内所有标记为101的迁移成功的数据-->
+    <bean id="queryArchivedData" class="org.springframework.batch.item.database.JdbcCursorItemReader">
+        <property name="dataSource" ref="dataSource" />
+        <property name="rowMapper" ref="orderDbMapper"/>
+        <property name="sql" value="select * from `order` where status = 101 and  modified &lt;= ADDDATE(now(),-7) "/>
+        <property name="fetchSize" value="20"/>
+    </bean>
+    <!--3.2 只将迁移成功的数据标记为102，表示待删除-->
+    <bean id="markDataToDel" class="com.jd.batch.writer.MarkDataToArchive">
+        <property name="dataSource" ref="dataSource"/>
+        <property name="tableName" value="`order`"/>
+        <property name="status" value="102"/>
+    </bean>
+
+    <!--4.1 查询验证成功迁移的数据-->
+    <bean id="queryArchivedSuccessData" class="org.springframework.batch.item.database.JdbcCursorItemReader">
+        <property name="dataSource" ref="dataSource" />
+        <property name="rowMapper" ref="orderDbMapper"/>
+        <property name="sql" value="select * from `order` where status = 102 "/>
+        <property name="fetchSize" value="20"/>
+    </bean>
+    <!--4.2 将成功迁移的数据进行删除-->
+    <bean id="delDateItem" class="com.jd.batch.writer.DelDataItem">
+        <property name="dataSource" ref="dataSource"/>
+        <property name="tableName" value="`order`"/>
+    </bean>
+
+    <!--自定义springBatch监听器-->
+    <bean id="dbJobListener" class="com.jd.batch.listener.DBJobListener"/>
+
+    <!--配置springBatch多线程-->
+    <bean id="taskExecutor" class="org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor">
+        <property name="corePoolSize" value="5"/>
+        <property name="maxPoolSize" value="10"/>
+    </bean>
+</beans>

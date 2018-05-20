@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+       xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+       xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd">
+
+
+    <!-- 定义目标bean和bean中的方法 -->
+    <bean id="SpringQtzJob" class="com.jd.batch.squartz.SpringQtz"/>
+
+    <bean id="SpringQtzJobMethod" class="org.springframework.scheduling.quartz.MethodInvokingJobDetailFactoryBean">
+        <property name="targetObject">
+            <ref bean="SpringQtzJob"/>
+        </property>
+        <!-- 要执行的方法名称 -->
+        <property name="targetMethod">
+            <value>archiveDate</value>
+        </property>
+    </bean>
+
+
+    <!-- 项目启动后任务就执行一次 -->
+     <bean id="simpleTrigger" class="org.springframework.scheduling.quartz.SimpleTriggerFactoryBean">
+         <property name="jobDetail" ref="SpringQtzJobMethod"/>
+         <property name="startDelay" value="500"/>
+         <property name="repeatInterval" value="0"/>
+         <property name="repeatCount" value="0"/>
+     </bean>
+
+    <!-- 调度触发器 配置具体的触发时间  -->
+    <bean id="CronTriggerBean" class="org.springframework.scheduling.quartz.CronTriggerBean">
+        <property name="jobDetail" ref="SpringQtzJobMethod"></property>
+        <property name="cronExpression" value="0 0/1 * * * ?"></property>
+        <!--<property name="cronExpression" value="0 0 0/1 * * ?"></property>-->
+    </bean>
+
+    <!-- 调度工厂 -->
+    <bean id="SpringJobSchedulerFactoryBean" class="org.springframework.scheduling.quartz.SchedulerFactoryBean">
+        <property name="triggers">
+            <list>
+                <ref bean="CronTriggerBean"/>
+            </list>
+        </property>
+        <!--配置多线程等-->
+        <property name="configLocation" value="classpath:quartz.properties"/>
+    </bean>
+</beans>
